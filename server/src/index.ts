@@ -32,7 +32,7 @@ async function startServer(){
     await mongoose.connect(mongoUrl);
     console.log('Connected to MongoDB')
     startNewsIngestion();
-    app.listen(PORT, '127.0.0.1', () => {
+    app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on port ${PORT}`);
 });
   }
