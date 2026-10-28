@@ -3,7 +3,7 @@ import { getArticleExpiryDate } from '../../config/newsRetention.js';
 import type { BrowserContext } from 'playwright';
 import { enrichArticlePage, type ArticlePageSourceConfig } from './articlePageEnrichment.js';
 import { normalizeCanonicalUrl } from './normalizeCanonicalUrl.js';
-import { storeNewsImage } from './newsImageStorage.js';
+import { hasStoredNewsImage, storeNewsImage } from './newsImageStorage.js';
 
 export interface RssSourceConfig {
   sourceId: string;
@@ -220,10 +220,15 @@ export async function collectRssSource(
     }
 
     const existingImageIsLocal = existingArticle.imageUrl?.startsWith(LOCAL_NEWS_IMAGE_PREFIX);
-    if (article.imageUrl && !existingImageIsLocal) {
+    const existingLocalImageIsAvailable = existingImageIsLocal
+      ? await hasStoredNewsImage(existingArticle.imageUrl ?? '')
+      : false;
+    let imageWasRecovered = false;
+    if (article.imageUrl && (!existingImageIsLocal || !existingLocalImageIsAvailable)) {
       const imageUrl = sourceConfig.imageDownloadHosts
         ? await storeNewsImage(article.imageUrl, sourceConfig.imageDownloadHosts) ?? article.imageUrl
         : article.imageUrl;
+      imageWasRecovered = imageUrl.startsWith(LOCAL_NEWS_IMAGE_PREFIX);
       await Article.updateOne(
         { canonicalUrl: article.canonicalUrl },
         {
@@ -244,12 +249,15 @@ export async function collectRssSource(
     const contentIsMissing = Boolean(pageConfig?.contentSelectors?.length && !existingArticle.content);
     const imageNeedsLocalCopy = Boolean(
       pageConfig?.imageSelectors?.length &&
-      (!existingArticle.imageUrl || !existingArticle.imageUrl.startsWith(LOCAL_NEWS_IMAGE_PREFIX)),
+      !imageWasRecovered &&
+      (!existingArticle.imageUrl || !existingImageIsLocal || !existingLocalImageIsAvailable),
     );
     if (contentIsMissing || imageNeedsLocalCopy) {
       existingArticlesNeedingEnrichment.push({
         ...article,
-        ...(existingArticle.imageUrl ? { imageUrl: existingArticle.imageUrl } : {}),
+        ...(existingArticle.imageUrl && (!existingImageIsLocal || existingLocalImageIsAvailable)
+          ? { imageUrl: existingArticle.imageUrl }
+          : {}),
       });
     }
   }

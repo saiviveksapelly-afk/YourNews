@@ -142,6 +142,23 @@ export async function storeNewsImage(
   }
 }
 
+export async function hasStoredNewsImage(publicPath: string): Promise<boolean> {
+  const imageName = path.basename(publicPath);
+  if (
+    !publicPath.startsWith(`${PUBLIC_IMAGE_PATH}/`) ||
+    !/^[a-f0-9]{64}\.(?:avif|jpg|png|webp)$/.test(imageName)
+  ) {
+    return false;
+  }
+
+  try {
+    await access(path.join(IMAGE_DIRECTORY, imageName));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function removeUnreferencedNewsImages(): Promise<void> {
   try {
     const articlesWithLocalImages = await Article.find({
