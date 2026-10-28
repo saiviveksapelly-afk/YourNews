@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://my-news-backend.getvoroa.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
