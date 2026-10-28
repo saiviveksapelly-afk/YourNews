@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import ToastMessage from '../components/ToastMessage.tsx';
 import NewsImage from '../components/NewsImage.tsx';
@@ -7,6 +7,16 @@ import { NEWS_CATEGORIES } from '../config/newsCategories.ts';
 import { NEWS_REGIONS } from '../config/newsRegions.ts';
 import type { NewsArticle } from '../types/newsArticle.ts';
 import './CatalogPage.css';
+
+const CATALOG_REFRESH_INTERVAL_MS = 20 * 60 * 1000;
+
+type CatalogSnapshot = {
+  articles: NewsArticle[];
+  featuredArticle: NewsArticle | null;
+  topStories: NewsArticle[];
+};
+
+const catalogCache = new Map<string, { snapshot: CatalogSnapshot; savedAt: number }>();
 
 function formatPublishedAt(value: string) {
   const publishedAt = new Date(value);
@@ -37,6 +47,7 @@ function CatalogPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [retryNumber, setRetryNumber] = useState(0);
+  const lastRetryNumber = useRef(0);
   const location = useLocation();
   const navigate = useNavigate();
   const notice = (location.state as { notice?: string } | null)?.notice;
@@ -47,25 +58,46 @@ function CatalogPage() {
 
   useEffect(() => {
     let requestIsCurrent = true;
+    let refreshTimer: number | undefined;
+    let refreshIsRunning = false;
 
-    async function loadArticles() {
-      setIsLoading(true);
-      setErrorMessage('');
+    const query = new URLSearchParams({ region: selectedRegion, view: articleView });
+    if (selectedCategory !== 'All') query.set('category', selectedCategory);
+    if (fromDate) query.set('from', fromDate);
+    if (toDate) query.set('to', toDate);
+    if (searchTerm) query.set('search', searchTerm);
+    const cacheKey = query.toString();
+    const forceRefresh = retryNumber !== lastRetryNumber.current;
+    lastRetryNumber.current = retryNumber;
+    if (forceRefresh) catalogCache.delete(cacheKey);
+    const cachedEntry = forceRefresh ? undefined : catalogCache.get(cacheKey);
+
+    if (cachedEntry) {
+      setArticles(cachedEntry.snapshot.articles);
+      setFeaturedArticle(cachedEntry.snapshot.featuredArticle);
+      setTopStories(cachedEntry.snapshot.topStories);
+    }
+    setIsLoading(!cachedEntry);
+    setErrorMessage('');
+
+    function scheduleRefresh(delay = CATALOG_REFRESH_INTERVAL_MS) {
+      refreshTimer = window.setTimeout(() => void loadArticles(false), delay);
+    }
+
+    async function loadArticles(showLoader: boolean) {
+      if (refreshIsRunning) return;
+      refreshIsRunning = true;
+      if (showLoader) setIsLoading(true);
 
       const token = getAuthToken();
       if (!token) {
+        refreshIsRunning = false;
         navigate('/login', {
           replace: true,
           state: { notice: 'Please sign in to view the news catalog.' },
         });
         return;
       }
-
-      const query = new URLSearchParams({ region: selectedRegion, view: articleView });
-      if (selectedCategory !== 'All') query.set('category', selectedCategory);
-      if (fromDate) query.set('from', fromDate);
-      if (toDate) query.set('to', toDate);
-      if (searchTerm) query.set('search', searchTerm);
 
       try {
         const response = await fetch(`/api/articles?${query.toString()}`, {
@@ -95,28 +127,42 @@ function CatalogPage() {
           setErrorMessage("We couldn't read the news response. Please try again.");
           return;
         }
-        setArticles(data.articles);
-        setFeaturedArticle(data.featuredArticle ?? null);
-        const nextTopStories = Array.isArray(data.topStories) ? data.topStories : [];
-        setTopStories((currentTopStories) => {
-          const currentIds = currentTopStories.map((story) => story._id).join(',');
-          const nextIds = nextTopStories.map((story) => story._id).join(',');
-          return currentIds === nextIds ? currentTopStories : nextTopStories;
-        });
+        const snapshot: CatalogSnapshot = {
+          articles: data.articles,
+          featuredArticle: data.featuredArticle ?? null,
+          topStories: Array.isArray(data.topStories) ? data.topStories : [],
+        };
+        catalogCache.set(cacheKey, { snapshot, savedAt: Date.now() });
+        setArticles(snapshot.articles);
+        setFeaturedArticle(snapshot.featuredArticle);
+        setTopStories(snapshot.topStories);
       } catch {
         if (requestIsCurrent) {
           setErrorMessage("We couldn't connect to the news service. Check your connection and try again.");
         }
       } finally {
-        if (requestIsCurrent) setIsLoading(false);
+        refreshIsRunning = false;
+        if (requestIsCurrent) {
+          setIsLoading(false);
+          scheduleRefresh();
+        }
       }
     }
 
-    void loadArticles();
-    const pollingTimer = window.setInterval(() => void loadArticles(), 60_000);
+    if (cachedEntry) {
+      const cacheAge = Date.now() - cachedEntry.savedAt;
+      if (cacheAge >= CATALOG_REFRESH_INTERVAL_MS) {
+        void loadArticles(false);
+      } else {
+        scheduleRefresh(CATALOG_REFRESH_INTERVAL_MS - cacheAge);
+      }
+    } else {
+      void loadArticles(true);
+    }
+
     return () => {
       requestIsCurrent = false;
-      window.clearInterval(pollingTimer);
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
     };
   }, [articleView, selectedCategory, selectedRegion, fromDate, toDate, searchTerm, retryNumber, navigate]);
 
