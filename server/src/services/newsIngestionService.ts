@@ -5,6 +5,7 @@ import { nasaRssSource } from './ingestion/sourceAdapters/nasa.js';
 import { techCrunchRssSource } from './ingestion/sourceAdapters/techCrunch.js';
 import { indianExpressRssSources } from './ingestion/sourceAdapters/indianExpress.js';
 import { hindustanTimesPoliticsSource } from './ingestion/sourceAdapters/hindustanTimes.js';
+import { bbcRssSources } from './ingestion/sourceAdapters/bbc.js';
 import { removeUnreferencedNewsImages } from './ingestion/newsImageStorage.js';
 
 const INGESTION_INTERVAL_MS = 20 * 60 * 1000;
@@ -13,6 +14,7 @@ const rssSources: RssSourceConfig[] = [
   techCrunchRssSource,
   nasaRssSource,
   hindustanTimesPoliticsSource,
+  ...bbcRssSources,
   ...indianExpressRssSources,
 ] as const;
 
