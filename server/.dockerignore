@@ -1,0 +1,10 @@
+# Local dependencies and compiled output
+node_modules
+dist
+
+# Local article-image cache
+uploads
+
+# Environment files and secrets
+.env
+.env.*
