@@ -4,12 +4,86 @@ import Article from '../models/Article.js';
 import { isNewsCategory } from '../config/newsCategories.js';
 import { isNewsRegion } from '../config/newsRegions.js';
 
+const ARTICLE_FIELDS = 'title summary source sourceId sourceName canonicalUrl imageUrl imageCredit category region author publishedAt sourceRank sourceViewCount popularitySource';
+const COMMON_STORY_SCAN_LIMIT = 2000;
+const SEARCH_RESULT_LIMIT = 50;
+
+type StoryCandidate = {
+  title: string;
+  source: string;
+  sourceViewCount?: number;
+  sourceRank?: number;
+  publishedAt: Date;
+};
+
+function normalizeHeadline(title: string): string {
+  return title
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function groupCommonHeadlines<T extends StoryCandidate>(articles: T[]) {
+  const groups = new Map<string, { article: T; sources: Set<string> }>();
+
+  for (const article of articles) {
+    const headlineKey = normalizeHeadline(article.title);
+    const existingGroup = groups.get(headlineKey);
+
+    if (existingGroup) {
+      existingGroup.sources.add(article.source);
+    } else {
+      groups.set(headlineKey, {
+        article,
+        sources: new Set([article.source]),
+      });
+    }
+  }
+
+  return [...groups.values()]
+    .map(({ article, sources }) => ({
+      ...article,
+      coverageCount: sources.size,
+      coverageSources: [...sources].sort(),
+    }))
+    .sort((first, second) => {
+      const coverageDifference = second.coverageCount - first.coverageCount;
+      if (coverageDifference !== 0) return coverageDifference;
+
+      const viewDifference = (second.sourceViewCount ?? 0) - (first.sourceViewCount ?? 0);
+      if (viewDifference !== 0) return viewDifference;
+
+      const firstRank = first.sourceRank ?? Number.MAX_SAFE_INTEGER;
+      const secondRank = second.sourceRank ?? Number.MAX_SAFE_INTEGER;
+      if (firstRank !== secondRank) return firstRank - secondRank;
+
+      return second.publishedAt.getTime() - first.publishedAt.getTime();
+    });
+}
+
+function escapeRegularExpression(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export async function getArticles(req: Request, res: Response) {
   const requestedCategory = req.query.category;
   const requestedRegion = req.query.region;
   const requestedView = req.query.view;
   const requestedFrom = req.query.from;
   const requestedTo = req.query.to;
+  const requestedSearch = req.query.search;
+
+  if (requestedSearch !== undefined && typeof requestedSearch !== 'string') {
+    return res.status(400).json({ message: 'Enter a word or phrase to search headlines.' });
+  }
+
+  const searchTerm = typeof requestedSearch === 'string' ? requestedSearch.trim() : '';
+  if (searchTerm.length > 100) {
+    return res.status(400).json({ message: 'Search headlines using 100 characters or fewer.' });
+  }
 
   if (
     requestedCategory !== undefined &&
@@ -71,47 +145,58 @@ export async function getArticles(req: Request, res: Response) {
     expiresAt: { $gt: new Date() },
     ...(Object.keys(dateFilter).length ? { publishedAt: dateFilter } : {}),
   };
-  const sort = requestedView === 'top10'
-    ? { sourceViewCount: -1 as const, sourceRank: 1 as const, publishedAt: -1 as const }
-    : { publishedAt: -1 as const };
-  const articleLimit = requestedView === 'top10' ? 10 : 50;
-
   try {
-    const articles = await Article.find(filter)
-      .select('title summary source sourceId sourceName canonicalUrl imageUrl imageCredit category region author publishedAt sourceRank sourceViewCount popularitySource')
-      .sort(sort)
-      .limit(articleLimit)
-      .lean();
-
-    const topStories = await Article.find(bannerFilter)
-      .select('title summary source sourceId sourceName canonicalUrl imageUrl imageCredit category region author publishedAt sourceRank sourceViewCount popularitySource')
-      .sort({ sourceViewCount: -1, sourceRank: 1, publishedAt: -1 })
-      .limit(10)
-      .lean();
-
-    const popularityFilter = {
-      ...bannerFilter,
-      $or: [
-        { sourceViewCount: { $exists: true } },
-        { sourceRank: { $exists: true } },
-      ],
+    const imageFilter = {
+      imageUrl: { $exists: true, $ne: '', $regex: /\S/ },
     };
-    const rankedArticleWithImage = await Article.findOne({ ...popularityFilter, imageUrl: { $exists: true, $ne: '' } })
-      .select('title summary source sourceId sourceName canonicalUrl imageUrl imageCredit category region author publishedAt sourceRank sourceViewCount popularitySource')
+    const topStories = groupCommonHeadlines(await Article.find({ ...bannerFilter, ...imageFilter })
+      .select(ARTICLE_FIELDS)
       .sort({ sourceViewCount: -1, sourceRank: 1, publishedAt: -1 })
-      .lean();
+      .limit(COMMON_STORY_SCAN_LIMIT)
+      .lean()).slice(0, 10);
 
-    const rankedArticle = rankedArticleWithImage ?? await Article.findOne(popularityFilter)
-      .select('title summary source sourceId sourceName canonicalUrl imageUrl imageCredit category region author publishedAt sourceRank sourceViewCount popularitySource')
-      .sort({ sourceViewCount: -1, sourceRank: 1, publishedAt: -1 })
-      .lean();
+    let articles;
+    if (searchTerm) {
+      const escapedSearch = escapeRegularExpression(searchTerm);
+      const headlineFilter = {
+        ...filter,
+        title: { $regex: escapedSearch, $options: 'i' },
+      };
+      const prefixArticles = await Article.find({
+        ...filter,
+        title: { $regex: `^${escapedSearch}`, $options: 'i' },
+      })
+        .select(ARTICLE_FIELDS)
+        .sort({ publishedAt: -1 })
+        .limit(SEARCH_RESULT_LIMIT)
+        .lean();
+      const prefixIds = prefixArticles.map((article) => article._id);
+      const remainingArticles = await Article.find({
+        ...headlineFilter,
+        ...(prefixIds.length ? { _id: { $nin: prefixIds } } : {}),
+      })
+        .select(ARTICLE_FIELDS)
+        .sort({ publishedAt: -1 })
+        .limit(SEARCH_RESULT_LIMIT - prefixArticles.length)
+        .lean();
+      articles = [...prefixArticles, ...remainingArticles];
+    } else if (requestedView === 'top10') {
+      articles = groupCommonHeadlines(await Article.find({ ...filter, ...imageFilter })
+        .select(ARTICLE_FIELDS)
+        .sort({ sourceViewCount: -1, sourceRank: 1, publishedAt: -1 })
+        .limit(COMMON_STORY_SCAN_LIMIT)
+        .lean()).slice(0, 10);
+    } else {
+      articles = await Article.find(filter)
+        .select(ARTICLE_FIELDS)
+        .sort({ publishedAt: -1 })
+        .limit(50)
+        .lean();
+    }
 
-    const featuredArticle = rankedArticle ?? topStories[0] ?? await Article.findOne(bannerFilter)
-      .select('title summary source sourceId sourceName canonicalUrl imageUrl imageCredit category region author publishedAt sourceRank sourceViewCount popularitySource')
-      .sort({ publishedAt: -1 })
-      .lean();
+    const featuredArticle = topStories[0] ?? null;
 
-    return res.status(200).json({ articles, featuredArticle, topStories });
+    return res.status(200).json({ articles, featuredArticle, topStories, searchTerm });
   } catch (error) {
     console.error('Could not load news articles:', error);
     return res.status(500).json({

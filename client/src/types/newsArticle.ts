@@ -19,4 +19,6 @@ export interface NewsArticle {
   sourceRank?: number;
   sourceViewCount?: number;
   popularitySource?: string;
+  coverageCount?: number;
+  coverageSources?: string[];
 }

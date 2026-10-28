@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import ToastMessage from '../components/ToastMessage.tsx';
 import NewsImage from '../components/NewsImage.tsx';
@@ -25,6 +25,8 @@ function CatalogPage() {
   const [selectedRegion, setSelectedRegion] = useState<(typeof NEWS_REGIONS)[number]>('National');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [slideIndex, setSlideIndex] = useState(0);
   const [isDarkTheme, setIsDarkTheme] = useState(
     () => localStorage.getItem('catalog-theme') === 'dark',
@@ -63,6 +65,7 @@ function CatalogPage() {
       if (selectedCategory !== 'All') query.set('category', selectedCategory);
       if (fromDate) query.set('from', fromDate);
       if (toDate) query.set('to', toDate);
+      if (searchTerm) query.set('search', searchTerm);
 
       try {
         const response = await fetch(`/api/articles?${query.toString()}`, {
@@ -115,7 +118,7 @@ function CatalogPage() {
       requestIsCurrent = false;
       window.clearInterval(pollingTimer);
     };
-  }, [articleView, selectedCategory, selectedRegion, fromDate, toDate, retryNumber, navigate]);
+  }, [articleView, selectedCategory, selectedRegion, fromDate, toDate, searchTerm, retryNumber, navigate]);
 
   useEffect(() => {
     localStorage.setItem('catalog-theme', isDarkTheme ? 'dark' : 'light');
@@ -135,6 +138,16 @@ function CatalogPage() {
   function moveBanner(direction: -1 | 1) {
     if (bannerArticles.length < 2) return;
     setSlideIndex((activeSlideIndex + direction + bannerArticles.length) % bannerArticles.length);
+  }
+
+  function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSearchTerm(searchInput.trim());
+  }
+
+  function clearSearch() {
+    setSearchInput('');
+    setSearchTerm('');
   }
 
   return (
@@ -162,7 +175,9 @@ function CatalogPage() {
           </h1>
           <p>{currentBannerArticle?.summary ?? 'Browse the latest headlines across politics, sports, entertainment, and technology.'}</p>
           <span className="source-status">
-            {currentBannerArticle?.sourceViewCount !== undefined
+            {currentBannerArticle?.coverageCount && currentBannerArticle.coverageCount > 1
+              ? `Reported by ${currentBannerArticle.coverageCount} sources: ${currentBannerArticle.coverageSources?.join(', ')}.`
+              : currentBannerArticle?.sourceViewCount !== undefined
               ? `${currentBannerArticle.sourceViewCount.toLocaleString()} views reported by ${currentBannerArticle.source}.`
               : currentBannerArticle?.sourceRank !== undefined
                 ? `Ranked #${currentBannerArticle.sourceRank} in ${(currentBannerArticle.popularitySource ?? currentBannerArticle.source)}'s top stories.`
@@ -216,7 +231,7 @@ function CatalogPage() {
         <div className="catalog-section-heading">
           <div>
             <p className="eyebrow">{selectedCategory === 'All' ? 'All genres' : selectedCategory}</p>
-            <h2 id="latest-heading">{articleView === 'top10' ? 'Top 10 stories' : 'Latest stories'}</h2>
+            <h2 id="latest-heading">{searchTerm ? `Headlines matching “${searchTerm}”` : articleView === 'top10' ? 'Top 10 stories' : 'Latest stories'}</h2>
           </div>
           <p className="filter-help">Choose a genre and date range to find stories from our selected sources.</p>
         </div>
@@ -258,6 +273,20 @@ function CatalogPage() {
           <button className={articleView === 'top10' ? 'is-selected' : ''} type="button" aria-pressed={articleView === 'top10'} onClick={() => setArticleView('top10')}>Top 10</button>
         </div>
 
+        <form className="headline-search" onSubmit={handleSearch} role="search">
+          <label htmlFor="headline-search-input">Search headlines</label>
+          <input
+            id="headline-search-input"
+            type="search"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Enter a word or phrase"
+            maxLength={100}
+          />
+          <button type="submit">Search</button>
+          {searchTerm && <button type="button" onClick={clearSearch}>Clear search</button>}
+        </form>
+
         {errorMessage && (
           <div className="articles-error" role="alert">
             <p>{errorMessage}</p>
@@ -268,7 +297,7 @@ function CatalogPage() {
         {isLoading ? (
           <div className="articles-state" role="status">Loading news...</div>
         ) : articles.length === 0 && !errorMessage ? (
-          <div className="articles-state" role="status">No stories match these filters yet.</div>
+          <div className="articles-state" role="status">{searchTerm ? `No headlines matched “${searchTerm}”. Try another word or phrase.` : 'No stories match these filters yet.'}</div>
         ) : (
           <div className="article-grid">
             {articles.map((article) => (
@@ -302,6 +331,9 @@ function CatalogPage() {
                       <span>{article.category}</span>
                       <time dateTime={article.publishedAt}>{formatPublishedAt(article.publishedAt)}</time>
                     </div>
+                    {articleView === 'top10' && article.coverageCount && article.coverageCount > 1 && (
+                      <p className="article-coverage">Covered by {article.coverageCount} sources</p>
+                    )}
                     <h3>{article.title}</h3>
                     {article.summary && <p className="article-summary">{article.summary}</p>}
                   </div>
