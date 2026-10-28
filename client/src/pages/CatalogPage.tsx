@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
+import ToastMessage from '../components/ToastMessage.tsx';
+import NewsImage from '../components/NewsImage.tsx';
 import { clearAuthToken, getAuthToken } from '../auth/authToken.ts';
 import { NEWS_CATEGORIES } from '../config/newsCategories.ts';
 import { NEWS_REGIONS } from '../config/newsRegions.ts';
@@ -36,6 +38,10 @@ function CatalogPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const notice = (location.state as { notice?: string } | null)?.notice;
+
+  const dismissNotice = useCallback(() => {
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     let requestIsCurrent = true;
@@ -146,16 +152,7 @@ function CatalogPage() {
         </div>
       </header>
 
-      {notice && (
-        <div className="catalog-notification" role="status">
-          <span>{notice}</span>
-          <button
-            type="button"
-            aria-label="Dismiss notification"
-            onClick={() => navigate('/catalog', { replace: true, state: null })}
-          >×</button>
-        </div>
-      )}
+      {notice && <ToastMessage message={notice} onDismiss={dismissNotice} />}
 
       <section className="trending-hero" aria-labelledby="trending-heading">
         <div className="trending-copy">
@@ -181,20 +178,20 @@ function CatalogPage() {
         </div>
 
         <div className="trending-art" aria-label={currentBannerArticle ? `Featured ${currentBannerArticle.category} story from ${currentBannerArticle.source}` : 'Featured news story image'}>
-          {currentBannerArticle?.imageUrl ? (
+          {currentBannerArticle ? (
             <>
-              <img
+              <NewsImage
                 key={currentBannerArticle._id}
                 className="trending-feature-image"
                 src={currentBannerArticle.imageUrl}
+                category={currentBannerArticle.category}
                 alt=""
-                onError={(event) => {
-                  event.currentTarget.hidden = true;
-                  const message = event.currentTarget.parentElement?.querySelector('.image-unavailable');
+                onImageError={(image) => {
+                  const message = image.parentElement?.querySelector('.image-unavailable');
                   if (message instanceof HTMLElement) message.hidden = false;
                 }}
               />
-              <p className="image-unavailable" hidden>The publisher thumbnail could not be loaded.</p>
+              <p className="image-unavailable" hidden>Image could not be loaded.</p>
             </>
           ) : (
             <p className="image-unavailable">The publisher did not provide a thumbnail for this story.</p>
@@ -203,7 +200,6 @@ function CatalogPage() {
           {currentBannerArticle && (
             <span className="trending-image-source">
               {currentBannerArticle.source}
-              {currentBannerArticle.imageCredit ? ` · ${currentBannerArticle.imageCredit}` : ''}
             </span>
           )}
           <span className="trending-number">{String(activeSlideIndex + 1).padStart(2, '0')}</span>
@@ -284,27 +280,21 @@ function CatalogPage() {
               >
                 <article className="article-card">
                   <div className="article-image-frame">
-                    {article.imageUrl ? (
-                      <>
-                        <img
-                          key={`${article._id}-${article.imageUrl}`}
-                          className="article-image"
-                          src={article.imageUrl}
-                          alt=""
-                          loading="lazy"
-                          onError={(event) => {
-                            event.currentTarget.hidden = true;
-                            const message = event.currentTarget.parentElement?.querySelector('.image-unavailable');
-                            if (message instanceof HTMLElement) message.hidden = false;
-                          }}
-                        />
-                        <p className="image-unavailable" hidden>Publisher thumbnail could not be loaded.</p>
-                      </>
-                    ) : (
-                      <p className="image-unavailable">No thumbnail supplied</p>
-                    )}
+                    <NewsImage
+                      key={`${article._id}-${article.imageUrl ?? 'fallback'}`}
+                      className="article-image"
+                      src={article.imageUrl}
+                      category={article.category}
+                      alt=""
+                      loading="lazy"
+                      onImageError={(image) => {
+                        const message = image.parentElement?.querySelector('.image-unavailable');
+                        if (message instanceof HTMLElement) message.hidden = false;
+                      }}
+                    />
+                    <p className="image-unavailable" hidden>Image could not be loaded.</p>
                     <span className="article-image-source">
-                      {article.source}{article.imageCredit ? ` · ${article.imageCredit}` : ''}
+                      {article.source}
                     </span>
                   </div>
                   <div className="article-card-content">

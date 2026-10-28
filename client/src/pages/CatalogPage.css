@@ -61,22 +61,6 @@
 .theme-toggle:hover,
 .date-range-filters button:hover { border-color: var(--accent); }
 
-.catalog-notification {
-  display: flex;
-  max-width: 600px;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin: 22px auto -18px;
-  padding: 13px 16px;
-  border: 1px solid var(--border);
-  border-radius: 13px;
-  background: var(--surface-muted);
-  color: var(--text);
-  font-size: 14px;
-}
-.catalog-notification button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 21px; }
-
 .trending-hero {
   position: relative;
   display: grid;

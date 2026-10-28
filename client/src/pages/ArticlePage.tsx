@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { clearAuthToken, getAuthToken } from '../auth/authToken.ts';
+import NewsImage from '../components/NewsImage.tsx';
 import type { NewsArticle } from '../types/newsArticle.ts';
 import './ArticlePage.css';
 
@@ -110,24 +111,20 @@ function ArticlePage() {
               </div>
             </div>
 
-            {article.imageUrl ? (
-              <figure className="full-article-image-wrap">
-                <img
-                  className="full-article-image"
-                  src={article.imageUrl}
-                  alt=""
-                  onError={(event) => {
-                    const figure = event.currentTarget.closest('figure');
-                    if (figure instanceof HTMLElement) figure.hidden = true;
-                  }}
-                />
-                <figcaption>
-                  {article.source}{article.imageCredit ? ` · ${article.imageCredit}` : ''}
-                </figcaption>
-              </figure>
-            ) : (
-              <p className="article-image-note">The publisher did not provide a thumbnail for this story.</p>
-            )}
+            <figure className="full-article-image-wrap">
+              <NewsImage
+                className="full-article-image"
+                src={article.imageUrl}
+                category={article.category}
+                alt=""
+                onImageError={(image) => {
+                  const message = image.parentElement?.querySelector('.article-image-note');
+                  if (message instanceof HTMLElement) message.hidden = false;
+                }}
+              />
+              <p className="article-image-note" hidden>Image could not be loaded.</p>
+              <figcaption>{article.source}</figcaption>
+            </figure>
 
             <div className="full-article-content">
               {article.content ? (

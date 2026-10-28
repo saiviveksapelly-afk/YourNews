@@ -30,4 +30,13 @@ export const bbcRssSources: RssSourceConfig[] = [
     includeSummary: true,
     includeImages: true,
   },
+  {
+    sourceId: 'bbc-technology',
+    feedUrl: 'https://feeds.bbci.co.uk/news/technology/rss.xml',
+    source: 'BBC News',
+    category: 'Technology',
+    region: 'International',
+    includeSummary: true,
+    includeImages: true,
+  },
 ];

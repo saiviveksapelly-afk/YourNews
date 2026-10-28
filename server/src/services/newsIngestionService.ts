@@ -38,7 +38,7 @@ async function runCollection(): Promise<void> {
     console.info('[NEWS] Ingestion started.');
     const collectionTasks = [
       ...rssSources.map((source) => ({
-        source: source.source,
+        source: `${source.source} (${source.region} ${source.category})`,
         collect: () => collectRssSource(source, browserSession?.context, seenUrls),
       })),
       { source: 'Hacker News', collect: () => collectHackerNewsArticles(seenUrls) },
