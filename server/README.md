@@ -21,7 +21,6 @@ Source configuration is in `src/services/ingestion/sourceAdapters/`:
 
 - `techCrunch.ts` uses its RSS feed and does not visit article pages.
 - `nasa.ts` uses NASA's technology RSS feed and only enriches URLs on `nasa.gov` subdomains. Its image rule requires a NASA-hosted image and a visible figure credit.
-- `indianExpress.ts` reads the publisher's category feeds but does not open article pages or cache their images locally.
 - `hackerNewsSource.ts` uses the official Hacker News API. It does not open story URLs because those may belong to unrelated publishers.
 
 The catalog links cards to an authenticated `/api/articles/:id` detail page. That page displays stored, source-permitted text and metadata and always links to the original publisher. A source that provides only a headline or excerpt is shown with that excerpt; its full article remains on the publisher's website.

@@ -32,7 +32,7 @@ function CatalogPage() {
   const [articleView, setArticleView] = useState<'latest' | 'top10'>('top10');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   // The national feeds currently supply stories in all four genres.
-  const [selectedRegion, setSelectedRegion] = useState<(typeof NEWS_REGIONS)[number]>('National');
+  const [selectedRegion, setSelectedRegion] = useState<(typeof NEWS_REGIONS)[number]>('International');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [searchInput, setSearchInput] = useState('');

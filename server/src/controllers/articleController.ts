@@ -99,7 +99,7 @@ export async function getArticles(req: Request, res: Response) {
     !isNewsRegion(requestedRegion)
   ) {
     return res.status(400).json({
-      message: 'Choose National or International news.',
+      message: 'Choose International news.',
     });
   }
 
