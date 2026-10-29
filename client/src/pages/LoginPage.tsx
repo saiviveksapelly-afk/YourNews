@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import './AuthPage.css';
 import { saveAuthToken } from '../auth/authToken.ts';
 import { getConnectionErrorMessage, getLoginErrorMessage } from '../auth/authMessages.ts';
+import { useAuthTheme } from '../auth/useAuthTheme.ts';
 
 function LoginPage() {
   const [email, setEmail] = useState('');
@@ -10,26 +11,30 @@ function LoginPage() {
   const [message, setMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isNightTheme, toggleTheme } = useAuthTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const routeNotice = (location.state as { notice?: string } | null)?.notice;
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitLogin(endpoint: '/api/auth/login' | '/api/auth/demo-login') {
     setMessage('');
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: endpoint === '/api/auth/login' ? JSON.stringify({ email, password }) : '{}',
       });
 
       if (!response.ok) {
-        setMessage(getLoginErrorMessage(response.status));
+        setMessage(
+          endpoint === '/api/auth/demo-login' && response.status === 503
+            ? 'The demo account is not configured yet. Please try again later.'
+            : getLoginErrorMessage(response.status),
+        );
         return;
       }
 
@@ -43,7 +48,11 @@ function LoginPage() {
       saveAuthToken(data.token);
       navigate('/catalog', {
         replace: true,
-        state: { notice: 'Signed in successfully. Welcome back!' },
+        state: {
+          notice: endpoint === '/api/auth/demo-login'
+            ? 'You are now viewing News with the demo account.'
+            : 'Signed in successfully. Welcome back!',
+        },
       });
     } catch {
       setMessage(getConnectionErrorMessage());
@@ -52,8 +61,21 @@ function LoginPage() {
     }
   }
 
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void submitLogin('/api/auth/login');
+  }
+
   return (
-    <main className="login-page sky-page">
+    <main className={`login-page sky-page ${isNightTheme ? 'theme-night' : 'theme-day'}`}>
+      <button
+        className="auth-theme-toggle"
+        type="button"
+        onClick={toggleTheme}
+        aria-pressed={isNightTheme}
+      >
+        {isNightTheme ? 'Day mode' : 'Night mode'}
+      </button>
       <Link className="login-brand" to="/login" aria-label="News home">
         <span className="brand-name">News</span>
         <span className="brand-tagline">News at your doorstep</span>
@@ -114,6 +136,16 @@ function LoginPage() {
             {isSubmitting ? 'Signing in…' : 'Get Started'}
           </button>
         </form>
+
+        <div className="demo-login-divider"><span>or explore the site</span></div>
+        <button
+          className="demo-login-button"
+          type="button"
+          onClick={() => void submitLogin('/api/auth/demo-login')}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Opening demo...' : 'Continue with demo account'}
+        </button>
 
         <p className="login-register-link">
           New here? <Link to="/register">Create an account</Link>

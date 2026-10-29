@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import './AuthPage.css';
 import { saveAuthToken } from '../auth/authToken.ts';
 import { getConnectionErrorMessage, getRegistrationErrorMessage } from '../auth/authMessages.ts';
+import { useAuthTheme } from '../auth/useAuthTheme.ts';
 
 function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -10,6 +11,7 @@ function RegisterPage() {
   const [message, setMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isNightTheme, toggleTheme } = useAuthTheme();
   const navigate = useNavigate();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -51,7 +53,15 @@ function RegisterPage() {
   }
 
   return (
-    <main className="login-page sky-page">
+    <main className={`login-page sky-page ${isNightTheme ? 'theme-night' : 'theme-day'}`}>
+      <button
+        className="auth-theme-toggle"
+        type="button"
+        onClick={toggleTheme}
+        aria-pressed={isNightTheme}
+      >
+        {isNightTheme ? 'Day mode' : 'Night mode'}
+      </button>
       <Link className="login-brand" to="/login" aria-label="News home">
         <span className="brand-name">News</span>
         <span className="brand-tagline">News at your doorstep</span>
