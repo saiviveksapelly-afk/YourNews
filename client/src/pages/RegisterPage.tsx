@@ -1,13 +1,25 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import './AuthPage.css';
-import { saveAuthToken } from '../auth/authToken.ts';
+import { clearAuthToken } from '../auth/authToken.ts';
 import { getConnectionErrorMessage, getRegistrationErrorMessage } from '../auth/authMessages.ts';
 import { useAuthTheme } from '../auth/useAuthTheme.ts';
 
+function getPasswordProblem(password: string): string {
+  if (password.length < 10) return 'Use at least 10 characters.';
+  if (!/[A-Z]/.test(password)) return 'Add at least one uppercase letter.';
+  if (!/[a-z]/.test(password)) return 'Add at least one lowercase letter.';
+  if (!/\d/.test(password)) return 'Add at least one number.';
+  if (!/[^A-Za-z0-9\s]/.test(password)) return 'Add at least one special character.';
+  if (new TextEncoder().encode(password).length > 72) return 'Use a password no longer than 72 bytes.';
+  return '';
+}
+
 function RegisterPage() {
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -17,15 +29,23 @@ function RegisterPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage('');
-    setIsSubmitting(true);
 
+    const passwordProblem = getPasswordProblem(password);
+    if (passwordProblem) {
+      setMessage(passwordProblem);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMessage('The passwords do not match. Check both password fields and try again.');
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password }),
       });
 
       if (!response.ok) {
@@ -33,17 +53,10 @@ function RegisterPage() {
         return;
       }
 
-      const data = (await response.json()) as { token?: unknown };
-
-      if (typeof data.token !== 'string' || !data.token) {
-        setMessage('Your account may be created, but we could not sign you in. Please try signing in.');
-        return;
-      }
-
-      saveAuthToken(data.token);
-      navigate('/catalog', {
+      clearAuthToken();
+      navigate('/login', {
         replace: true,
-        state: { notice: 'Your account is ready. Welcome to News!' },
+        state: { notice: 'Your account has been created. Please sign in.' },
       });
     } catch {
       setMessage(getConnectionErrorMessage());
@@ -76,11 +89,28 @@ function RegisterPage() {
 
         <h1 id="register-heading">Create your account</h1>
         <p className="login-subtitle">
-          Create an account to follow the latest technology headlines and ideas.
+          Create an account to follow the latest headlines and stories.
         </p>
 
         <form className="login-form" onSubmit={handleSubmit}>
           {message && <p className="login-message is-error" role="alert">{message}</p>}
+
+          <label className="login-field">
+            <input
+              type="text"
+              placeholder="Username"
+              aria-label="Username"
+              autoComplete="username"
+              minLength={3}
+              maxLength={30}
+              pattern="[A-Za-z0-9_]+"
+              title="Use 3–30 letters, numbers, or underscores."
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              required
+            />
+          </label>
+
           <label className="login-field">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M3 6.75A1.75 1.75 0 0 1 4.75 5h14.5A1.75 1.75 0 0 1 21 6.75v10.5A1.75 1.75 0 0 1 19.25 19H4.75A1.75 1.75 0 0 1 3 17.25V6.75Zm1.8-.25 7.2 5.4 7.2-5.4" />
@@ -89,6 +119,7 @@ function RegisterPage() {
               type="email"
               placeholder="Email"
               aria-label="Email"
+              autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
@@ -103,6 +134,7 @@ function RegisterPage() {
               type={showPassword ? 'text' : 'password'}
               placeholder="Password"
               aria-label="Password"
+              autoComplete="new-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
@@ -116,9 +148,27 @@ function RegisterPage() {
               {showPassword ? 'Hide' : 'Show'}
             </button>
           </label>
+          <p className="password-guidance">
+            Use at least 10 characters, including uppercase and lowercase letters, a number, and a special character.
+          </p>
+
+          <label className="login-field">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 10V7a5 5 0 0 1 10 0v3m-12 0h14v11H5V10Zm7 4v3" />
+            </svg>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Confirm password"
+              aria-label="Confirm password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              required
+            />
+          </label>
 
           <button className="login-submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Creating account…' : 'Create account'}
+            {isSubmitting ? 'Creating account...' : 'Create account'}
           </button>
         </form>
 

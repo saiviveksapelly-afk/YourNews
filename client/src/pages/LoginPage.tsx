@@ -16,7 +16,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const routeNotice = (location.state as { notice?: string } | null)?.notice;
 
-  async function submitLogin(credentials: { email: string; password: string }, isDemoLogin = false) {
+  async function submitLogin(credentials: { email: string; password: string }) {
     setMessage('');
     setIsSubmitting(true);
 
@@ -44,11 +44,7 @@ function LoginPage() {
       saveAuthToken(data.token);
       navigate('/catalog', {
         replace: true,
-        state: {
-          notice: isDemoLogin
-            ? 'You are now viewing News with the demo account.'
-            : 'Signed in successfully. Welcome back!',
-        },
+        state: { notice: 'Signed in successfully. Welcome back!' },
       });
     } catch {
       setMessage(getConnectionErrorMessage());
@@ -60,18 +56,6 @@ function LoginPage() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void submitLogin({ email, password });
-  }
-
-  function handleDemoLogin() {
-    const demoEmail = import.meta.env.VITE_DEMO_EMAIL?.trim();
-    const demoPassword = import.meta.env.VITE_DEMO_PASSWORD;
-
-    if (!demoEmail || !demoPassword) {
-      setMessage('Demo sign-in is not configured. Please use your email and password instead.');
-      return;
-    }
-
-    void submitLogin({ email: demoEmail, password: demoPassword }, true);
   }
 
   return (
@@ -144,16 +128,6 @@ function LoginPage() {
             {isSubmitting ? 'Signing in…' : 'Get Started'}
           </button>
         </form>
-
-        <div className="demo-login-divider"><span>or explore the site</span></div>
-        <button
-          className="demo-login-button"
-          type="button"
-          onClick={handleDemoLogin}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? 'Opening demo...' : 'Continue with demo account'}
-        </button>
 
         <p className="login-register-link">
           New here? <Link to="/register">Create an account</Link>

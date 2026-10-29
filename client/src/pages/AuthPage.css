@@ -161,6 +161,16 @@
   gap: 14px;
 }
 
+.password-guidance {
+  margin-top: -6px;
+  color: #7c8794;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.sky-page.theme-night .password-guidance { color: #c7b4cf; }
+
 .login-field {
   display: flex;
   min-height: 59px;
@@ -290,40 +300,6 @@
   font-size: 15px;
 }
 
-.demo-login-divider {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 22px;
-  color: #7c8794;
-  font-size: 13px;
-}
-
-.demo-login-divider::before,
-.demo-login-divider::after {
-  height: 1px;
-  flex: 1;
-  background: rgb(122 94 24 / 18%);
-  content: '';
-}
-
-.demo-login-button {
-  width: 100%;
-  min-height: 52px;
-  margin-top: 14px;
-  border: 1px solid rgb(180 126 0 / 38%);
-  border-radius: 15px;
-  background: rgb(255 255 255 / 74%);
-  color: #493900;
-  cursor: pointer;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.demo-login-button:hover { background: #fff5d8; }
-.demo-login-button:disabled { cursor: wait; opacity: .7; }
-
 @media (max-width: 560px) {
   .sky-page.login-page {
     padding: 104px 18px 32px;
@@ -431,16 +407,6 @@
   background: linear-gradient(105deg, #762c9b, #c3378b);
   box-shadow: 0 8px 24px rgb(142 48 161 / 25%), inset 0 1px 0 rgb(255 255 255 / 22%);
 }
-
-.sky-page.theme-night .demo-login-divider { color: #c7b4cf; }
-.sky-page.theme-night .demo-login-divider::before,
-.sky-page.theme-night .demo-login-divider::after { background: rgb(226 151 238 / 24%); }
-.sky-page.theme-night .demo-login-button {
-  border-color: rgb(226 151 238 / 34%);
-  background: rgb(255 255 255 / 6%);
-  color: #f3a4e4;
-}
-.sky-page.theme-night .demo-login-button:hover { background: rgb(255 255 255 / 11%); }
 
 .sky-page.theme-night .login-message {
   color: #e6c8ed;

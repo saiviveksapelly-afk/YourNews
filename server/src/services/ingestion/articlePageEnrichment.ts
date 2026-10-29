@@ -59,6 +59,20 @@ function isUsableImageUrl(value: string | undefined, articleUrl: string): string
   }
 }
 
+function getLargestSrcSetUrl(srcSet: string): string | undefined {
+  return srcSet
+    .split(',')
+    .map((candidate) => {
+      const [url, descriptor] = candidate.trim().split(/\s+/);
+      const width = descriptor?.match(/^(\d+(?:\.\d+)?)w$/i)?.[1];
+      const density = descriptor?.match(/^(\d+(?:\.\d+)?)x$/i)?.[1];
+      const resolution = width ? Number(width) : density ? Number(density) * 10_000 : 1;
+      return { url, resolution };
+    })
+    .filter((candidate): candidate is { url: string; resolution: number } => Boolean(candidate.url))
+    .sort((first, second) => second.resolution - first.resolution)[0]?.url;
+}
+
 function findStructuredArticle(value: unknown): StructuredArticle | undefined {
   if (Array.isArray(value)) {
     for (const item of value) {
@@ -172,16 +186,17 @@ export async function enrichArticlePage(
         const img = element as HTMLImageElement;
         return {
           url: img.currentSrc || img.src || img.getAttribute('data-src') || '',
+          srcSet: img.srcset || '',
           width: img.naturalWidth || Number(img.getAttribute('width')) || 0,
           height: img.naturalHeight || Number(img.getAttribute('height')) || 0,
           description: `${img.alt} ${img.className} ${img.currentSrc || img.src}`.toLowerCase(),
         };
       });
       if (
-        details.url && details.width >= 250 && details.height >= 120 &&
+        (getLargestSrcSetUrl(details.srcSet) || details.url) && details.width >= 250 && details.height >= 120 &&
         !/logo|avatar|icon|advert|banner-ad|tracking/.test(details.description)
       ) {
-        selectorImages.push(details.url);
+        selectorImages.push(getLargestSrcSetUrl(details.srcSet) || details.url);
       }
     }
 

@@ -80,6 +80,27 @@ function isLikelyImageUrl(value: string): boolean {
   }
 }
 
+function getLargestSrcSetUrl(srcSet: string | undefined): string | undefined {
+  if (!srcSet) return undefined;
+
+  return srcSet
+    .split(',')
+    .map((candidate) => {
+      const [url, descriptor] = candidate.trim().split(/\s+/);
+      const width = descriptor?.match(/^(\d+(?:\.\d+)?)w$/i)?.[1];
+      const density = descriptor?.match(/^(\d+(?:\.\d+)?)x$/i)?.[1];
+      const resolution = width ? Number(width) : density ? Number(density) * 10_000 : 1;
+      return { url, resolution };
+    })
+    .filter((candidate): candidate is { url: string; resolution: number } => Boolean(candidate.url))
+    .sort((first, second) => second.resolution - first.resolution)[0]?.url;
+}
+
+function getMediaImageWidth(tag: string): number {
+  const width = tag.match(/\bwidth=(['"])(\d+)\1/i)?.[2];
+  return width ? Number(width) : 0;
+}
+
 function readImageDetails(
   item: string,
   sourceConfig: RssSourceConfig,
@@ -87,13 +108,20 @@ function readImageDetails(
   if (!sourceConfig.includeImages) return undefined;
 
   const mediaTags = item.match(/<(?:media:content|media:thumbnail|enclosure)\b[^>]*>/gi) ?? [];
-  const imageTag = mediaTags.find((tag) =>
-    /<media:thumbnail\b/i.test(tag) ||
-    /\bmedium=(['"])image\1/i.test(tag) ||
-    /\btype=(['"])image\/[a-z0-9.+-]+\1/i.test(tag) ||
-    /\burl=(['"])(.*?)\1/i.test(tag) && isLikelyImageUrl(tag.match(/\burl=(['"])(.*?)\1/i)?.[2] ?? ''),
-  );
-  const mediaImage = imageTag?.match(/\burl=(['"])(.*?)\1/i);
+  const mediaImageTags = mediaTags.filter((tag) => {
+    if (/<media:thumbnail\b/i.test(tag)) return true;
+    const url = tag.match(/\burl=(['"])(.*?)\1/i)?.[2] ?? '';
+    return /\bmedium=(['"])image\1/i.test(tag)
+      || /\btype=(['"])image\/[a-z0-9.+-]+\1/i.test(tag)
+      || (url && isLikelyImageUrl(url));
+  });
+  const mediaImageTag = mediaImageTags
+    .filter((tag) => !/<media:thumbnail\b/i.test(tag))
+    .sort((first, second) => getMediaImageWidth(second) - getMediaImageWidth(first))[0];
+  const mediaImage = mediaImageTag?.match(/\burl=(['"])(.*?)\1/i);
+  const thumbnailImage = mediaImageTags
+    .find((tag) => /<media:thumbnail\b/i.test(tag))
+    ?.match(/\burl=(['"])(.*?)\1/i);
   const htmlContent = [
     readTag(item, 'content:encoded'),
     readTag(item, 'description'),
@@ -101,13 +129,13 @@ function readImageDetails(
   ].filter(Boolean).join(' ');
   const imageAttributes = htmlContent.match(/<img\b[^>]*>/gi) ?? [];
   const htmlImageUrl = imageAttributes.map((imageTag) => {
-    const imageAttribute = imageTag.match(/\b(?:src|data-src|data-lazy-src|data-original)=(['"])(.*?)\1/i);
-    if (imageAttribute?.[2]) return imageAttribute[2];
+    const srcSetUrl = getLargestSrcSetUrl(imageTag.match(/\bsrcset=(['"])(.*?)\1/i)?.[2]);
+    if (srcSetUrl) return srcSetUrl;
 
-    const srcSet = imageTag.match(/\bsrcset=(['"])(.*?)\1/i)?.[2];
-    return srcSet?.split(',')[0]?.trim().split(/\s+/)[0];
+    const imageAttribute = imageTag.match(/\b(?:src|data-src|data-lazy-src|data-original)=(['"])(.*?)\1/i);
+    return imageAttribute?.[2];
   }).find((url) => url && isHttpUrl(decodeXml(url)));
-  const imageUrl = decodeXml(mediaImage?.[2] ?? htmlImageUrl ?? '').trim();
+  const imageUrl = decodeXml(mediaImage?.[2] ?? htmlImageUrl ?? thumbnailImage?.[2] ?? '').trim();
   if (!imageUrl || !isHttpUrl(imageUrl)) return undefined;
 
   const imageCredit = toPlainText(readTag(item, 'media:credit'));

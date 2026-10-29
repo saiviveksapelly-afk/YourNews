@@ -12,11 +12,11 @@ export function getLoginErrorMessage(status: number) {
 
 export function getRegistrationErrorMessage(status: number) {
   if (status === 400) {
-    return 'Check your email and password, then try again. Choose a shorter password if it is very long.';
+    return 'Check your username, email, and password requirements, then try again.';
   }
 
   if (status === 409) {
-    return 'An account with this email already exists. Sign in or use a different email address.';
+    return 'That username or email is already in use. Sign in or choose different details.';
   }
 
   return 'We could not create your account right now. Please try again shortly.';

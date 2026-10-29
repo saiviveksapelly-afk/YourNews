@@ -4,40 +4,60 @@ import bcrypt from 'bcrypt'
 import { createAuthToken } from '../services/tokenService.js';
 
 export async function registerUser(req:Request , res: Response){
+    const username = req.body?.username;
     const email = req.body?.email;
     const password = req.body?.password;
     
-    if(typeof email !== "string" || typeof password !=="string"){
-        return res.status(400).json({message : "Email and password are required"})
+    if(typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string'){
+        return res.status(400).json({message : 'Username, email, and password are required.'})
     }
-    if(email.trim()==='' ||password.length ===0){
-        return res.status(400).json({message : 'Email and password cannot be empty'})
+    const normalUsername = username.trim().toLowerCase();
+    const normalEmail = email.trim().toLowerCase();
+
+    if (!/^[a-z0-9_]{3,30}$/.test(normalUsername)) {
+        return res.status(400).json({
+            message: 'Username must be 3–30 characters and use only letters, numbers, or underscores.',
+        });
+    }
+
+    const meetsPasswordPolicy =
+        password.length >= 10 &&
+        /[a-z]/.test(password) &&
+        /[A-Z]/.test(password) &&
+        /\d/.test(password) &&
+        /[^A-Za-z0-9\s]/.test(password);
+
+    if (!meetsPasswordPolicy) {
+        return res.status(400).json({
+            message: 'Password must be at least 10 characters and include an uppercase letter, a lowercase letter, a number, and a special character.',
+        });
     }
     if(Buffer.byteLength(password , 'utf8')>72){
         return res.status(400).json({
-            message : 'Password must be 72 bytes or fewer.',
+            message : 'Password is too long. Use 72 bytes or fewer.',
         }); 
     }
-    const normalEmail = email.trim().toLowerCase();
     try{
-    const existingUser = await User.findOne({email: normalEmail})
+    const existingUser = await User.findOne({
+        $or: [{ email: normalEmail }, { username: normalUsername }],
+    })
     if(existingUser){
         return res.status(409).json({
-            message : "An account with this email already exists.",
+            message : 'That username or email is already in use. Choose another or sign in.',
         })
     }
     const passwordHash = await bcrypt.hash(password , 10);
     const createdUser = await User.create({
+        username: normalUsername,
         email: normalEmail,
         passwordHash: passwordHash,
     })
-    const token = createAuthToken(createdUser._id.toString());
 
-    res.status(201).json({
-        message:"Account created",
-        token,
+    return res.status(201).json({
+        message: 'Account created. Please sign in.',
         user:{
-            id:createdUser._id,
+            id: createdUser._id.toString(),
+            username: createdUser.username,
             email: createdUser.email,
         }
     })
@@ -51,7 +71,7 @@ export async function registerUser(req:Request , res: Response){
     error.code === 11000
   ) {
     return res.status(409).json({
-      message: 'An account with this email already exists.',
+      message: 'That username or email is already in use. Choose another or sign in.',
     });
   }
 
