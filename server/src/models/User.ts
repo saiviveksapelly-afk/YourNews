@@ -21,11 +21,6 @@ const userSchema = new Schema(
       default: 'user',
       required: true,
     },
-    isDemo: {
-      type: Boolean,
-      default: false,
-      select: false,
-    },
   },
   { timestamps: true },
 );

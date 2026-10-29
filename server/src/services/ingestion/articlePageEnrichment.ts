@@ -142,19 +142,10 @@ export async function enrichArticlePage(
   page.setDefaultNavigationTimeout(12_000);
 
   try {
-    let navigationError: unknown;
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      try {
-        await page.goto(article.canonicalUrl, { waitUntil: 'domcontentloaded', timeout: 12_000 });
-        navigationError = undefined;
-        break;
-      } catch (error) {
-        navigationError = error;
-        if (attempt === 2) throw error;
-      }
-    }
-    if (navigationError) throw navigationError;
-    await page.waitForLoadState('load', { timeout: 2_000 }).catch(() => undefined);
+    // Wait for the document response first. Some publisher pages keep loading
+    // scripts or other resources long enough to time out before DOMContentLoaded.
+    await page.goto(article.canonicalUrl, { waitUntil: 'commit', timeout: 12_000 });
+    await page.waitForLoadState('domcontentloaded', { timeout: 5_000 }).catch(() => undefined);
 
     const jsonLdTexts = await page.locator('script[type="application/ld+json"]').allTextContents();
     let structuredArticle: StructuredArticle | undefined;

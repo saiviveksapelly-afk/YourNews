@@ -16,25 +16,21 @@ function LoginPage() {
   const navigate = useNavigate();
   const routeNotice = (location.state as { notice?: string } | null)?.notice;
 
-  async function submitLogin(endpoint: '/api/auth/login' | '/api/auth/demo-login') {
+  async function submitLogin(credentials: { email: string; password: string }, isDemoLogin = false) {
     setMessage('');
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: endpoint === '/api/auth/login' ? JSON.stringify({ email, password }) : '{}',
+        body: JSON.stringify(credentials),
       });
 
       if (!response.ok) {
-        setMessage(
-          endpoint === '/api/auth/demo-login' && response.status === 503
-            ? 'The demo account is not configured yet. Please try again later.'
-            : getLoginErrorMessage(response.status),
-        );
+        setMessage(getLoginErrorMessage(response.status));
         return;
       }
 
@@ -49,7 +45,7 @@ function LoginPage() {
       navigate('/catalog', {
         replace: true,
         state: {
-          notice: endpoint === '/api/auth/demo-login'
+          notice: isDemoLogin
             ? 'You are now viewing News with the demo account.'
             : 'Signed in successfully. Welcome back!',
         },
@@ -63,7 +59,19 @@ function LoginPage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void submitLogin('/api/auth/login');
+    void submitLogin({ email, password });
+  }
+
+  function handleDemoLogin() {
+    const demoEmail = import.meta.env.VITE_DEMO_EMAIL?.trim();
+    const demoPassword = import.meta.env.VITE_DEMO_PASSWORD;
+
+    if (!demoEmail || !demoPassword) {
+      setMessage('Demo sign-in is not configured. Please use your email and password instead.');
+      return;
+    }
+
+    void submitLogin({ email: demoEmail, password: demoPassword }, true);
   }
 
   return (
@@ -141,7 +149,7 @@ function LoginPage() {
         <button
           className="demo-login-button"
           type="button"
-          onClick={() => void submitLogin('/api/auth/demo-login')}
+          onClick={handleDemoLogin}
           disabled={isSubmitting}
         >
           {isSubmitting ? 'Opening demo...' : 'Continue with demo account'}

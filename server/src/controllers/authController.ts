@@ -1,5 +1,4 @@
 import type {Request , Response} from 'express';
-import { randomBytes } from 'node:crypto';
 import User from "../models/User.js"
 import bcrypt from 'bcrypt'
 import { createAuthToken } from '../services/tokenService.js';
@@ -99,51 +98,4 @@ export async function loginUser(req:Request , res:Response){
   console.error('Login failed:', error);
   return res.status(500).json({ message : "Could not log in."});
 }
-}
-
-export async function demoLoginUser(_req: Request, res: Response) {
-  const email = (process.env.DEMO_USER_EMAIL || 'portfolio-demo@yournews.invalid')
-    .trim()
-    .toLowerCase();
-
-  try {
-    let demoUser = await User.findOne({ email }).select('+isDemo');
-
-    if (!demoUser) {
-      // This account can only be entered through the demo endpoint. Store a
-      // random password hash so there is no shared password in the client.
-      const privatePassword = randomBytes(32).toString('hex');
-      const passwordHash = await bcrypt.hash(privatePassword, 10);
-      try {
-        demoUser = await User.create({ email, passwordHash, role: 'user', isDemo: true });
-      } catch (error) {
-        // Another request may have created the demo account at the same time.
-        if (
-          typeof error !== 'object' ||
-          error === null ||
-          !('code' in error) ||
-          error.code !== 11000
-        ) {
-          throw error;
-        }
-        demoUser = await User.findOne({ email }).select('+isDemo');
-      }
-    }
-
-    // Never let a demo setting accidentally grant access to an admin account.
-    if (!demoUser || demoUser.role !== 'user' || !demoUser.isDemo) {
-      console.error('Demo login must use a dedicated account marked for demo access.');
-      return res.status(503).json({ message: 'Demo login is not available.' });
-    }
-
-    const token = createAuthToken(demoUser._id.toString());
-    return res.status(200).json({
-      message: 'Demo login successful.',
-      token,
-      user: { id: demoUser._id.toString(), email: demoUser.email },
-    });
-  } catch (error) {
-    console.error('Demo login failed:', error);
-    return res.status(500).json({ message: 'Could not open the demo account.' });
-  }
 }

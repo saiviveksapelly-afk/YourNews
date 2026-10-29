@@ -34,10 +34,6 @@ async function runCollection(): Promise<void> {
     }
 
     console.info('[NEWS] Ingestion started.');
-    const removedNationalArticles = await Article.deleteMany({ region: 'National' });
-    if (removedNationalArticles.deletedCount > 0) {
-      console.info(`[NEWS] Removed ${removedNationalArticles.deletedCount} National articles.`);
-    }
     const collectionTasks = [
       ...rssSources.map((source) => ({
         source: `${source.source} (${source.region} ${source.category})`,
