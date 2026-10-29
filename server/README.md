@@ -9,7 +9,7 @@ RSS/API discovery -> normalize URL -> Playwright enrich when configured
                   -> cache permitted images locally -> MongoDB -> catalog API
 ```
 
-The collector runs at server startup and every 20 minutes. A single headless Chromium process is reused for the cycle; article pages are opened two at a time and closed after extraction. A page is visited only when its source adapter explicitly enables page enrichment. For NASA, new feed URLs are opened so Playwright can read missing metadata, an image, and the configured article text.
+The collector runs at server startup and every 20 minutes. After each cycle, the database keeps the 100 newest articles and removes older entries; the existing image cleanup then removes local images no longer referenced by stored articles. A single headless Chromium process is reused for the cycle; article pages are opened two at a time and closed after extraction. A page is visited only when its source adapter explicitly enables page enrichment. For NASA, new feed URLs are opened so Playwright can read missing metadata, an image, and the configured article text.
 
 Feed/API images take precedence. For sources with an explicit `imageDownloadHosts` allowlist, the server downloads permitted images into `uploads/news/` and saves a local `/api/media/news/...` path in MongoDB. The downloader accepts HTTPS images only from those hosts, limits each file to 1.5 MB, and stores at most 300 news images. Files without a remaining article reference are removed after an ingestion cycle. Express serves the image folder as static media.
 

@@ -7,8 +7,10 @@ import { indianExpressRssSources } from './ingestion/sourceAdapters/indianExpres
 import { hindustanTimesPoliticsSource } from './ingestion/sourceAdapters/hindustanTimes.js';
 import { bbcRssSources } from './ingestion/sourceAdapters/bbc.js';
 import { removeUnreferencedNewsImages } from './ingestion/newsImageStorage.js';
+import Article from '../models/Article.js';
 
 const INGESTION_INTERVAL_MS = 20 * 60 * 1000;
+const MAX_STORED_ARTICLES = 100;
 let collectionIsRunning = false;
 const rssSources: RssSourceConfig[] = [
   techCrunchRssSource,
@@ -54,6 +56,15 @@ async function runCollection(): Promise<void> {
 
     const failedSourceCount = results.filter((result) => result.status === 'rejected').length;
     console.info(`[NEWS] Ingestion totals: ${results.length} collectors processed, ${failedSourceCount} failed.`);
+    const articlesToRemove = await Article.find()
+      .sort({ publishedAt: -1, _id: -1 })
+      .skip(MAX_STORED_ARTICLES)
+      .select('_id')
+      .lean();
+    if (articlesToRemove.length > 0) {
+      await Article.deleteMany({ _id: { $in: articlesToRemove.map(({ _id }) => _id) } });
+      console.info(`[NEWS] Removed ${articlesToRemove.length} older stories to keep the catalog at ${MAX_STORED_ARTICLES} articles.`);
+    }
     await removeUnreferencedNewsImages();
   } catch (error) {
     console.error('News collection failed:', error);
