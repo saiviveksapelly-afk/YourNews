@@ -1,4 +1,5 @@
 import type {Request , Response} from 'express';
+import { randomBytes } from 'node:crypto';
 import User from "../models/User.js"
 import bcrypt from 'bcrypt'
 import { createAuthToken } from '../services/tokenService.js';
@@ -101,18 +102,18 @@ export async function loginUser(req:Request , res:Response){
 }
 
 export async function demoLoginUser(_req: Request, res: Response) {
-  const email = process.env.DEMO_USER_EMAIL?.trim().toLowerCase();
-  const password = process.env.DEMO_USER_PASSWORD;
-
-  if (!email || !password || Buffer.byteLength(password, 'utf8') > 72) {
-    return res.status(503).json({ message: 'Demo login is not available.' });
-  }
+  const email = (process.env.DEMO_USER_EMAIL || 'portfolio-demo@yournews.invalid')
+    .trim()
+    .toLowerCase();
 
   try {
     let demoUser = await User.findOne({ email }).select('+isDemo');
 
     if (!demoUser) {
-      const passwordHash = await bcrypt.hash(password, 10);
+      // This account can only be entered through the demo endpoint. Store a
+      // random password hash so there is no shared password in the client.
+      const privatePassword = randomBytes(32).toString('hex');
+      const passwordHash = await bcrypt.hash(privatePassword, 10);
       try {
         demoUser = await User.create({ email, passwordHash, role: 'user', isDemo: true });
       } catch (error) {
